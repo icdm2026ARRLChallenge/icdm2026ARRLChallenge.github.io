@@ -1,0 +1,60 @@
+name: Initialize public resources
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  initialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Publish verified resource files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > "$RUNNER_TEMP/initialize.py" <<'PYTHON'
+          import hashlib, io, json, os, subprocess, urllib.request, zipfile
+          from pathlib import Path
+          SOURCE='icdm26SocialChallenge/ICDM2026-Social-Sensemaking'
+          DEST='icdm26SocialChallenge/ICDM2026-Social-Sensemaking-clean'
+          assert os.environ['GITHUB_REPOSITORY']==DEST
+          TOKEN=os.environ['GH_TOKEN']
+          def read(url):
+           with urllib.request.urlopen(url,timeout=300) as r:return r.read()
+          def api(path,body):
+           url=path if path.startswith('https://') else 'https://api.github.com/repos/'+DEST+'/'+path
+           binary=isinstance(body,bytes);data=body if binary else json.dumps(body).encode()
+           headers={'Authorization':'Bearer '+TOKEN,'Accept':'application/vnd.github+json','Content-Type':'application/zip' if binary else 'application/json'}
+           with urllib.request.urlopen(urllib.request.Request(url,data=data,headers=headers,method='POST'),timeout=300) as r:return json.load(r)
+          def git(*a):return subprocess.check_output(['git',*a]).decode().strip()
+          revision=json.loads(read('https://api.github.com/repos/'+SOURCE+'/commits/main'))['sha']
+          files=['README.md','task1/README.md','task2/README.md','website/.gitkeep','website/source.zip','website/website-README.md']
+          for name in files:
+           data=read('https://raw.githubusercontent.com/'+SOURCE+'/'+revision+'/'+name)
+           if name.endswith('.zip'):
+            z=zipfile.ZipFile(io.BytesIO(data));assert not any('organizers/' in n or '__MACOSX' in n for n in z.namelist())
+            for page in ['pages/task1.html','pages/task2.html']:assert b'archive-layout' in z.read(page)
+           p=Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
+           print(name,hashlib.sha256(data).hexdigest())
+          git('config','user.name','icdm26SocialChallenge');git('config','user.email','343404806+icdm26SocialChallenge@users.noreply.github.com')
+          git('add',*files);git('commit','-m','Publish competition resources');git('push','origin','HEAD:main')
+          release=json.loads(read('https://api.github.com/repos/'+SOURCE+'/releases/tags/datasets-v1.0'))
+          prepared=[]
+          for a in release['assets']:
+           assert a['name'] in ['Task1-Dataset.zip','Task2-Dataset.zip']
+           data=read(a['browser_download_url']);assert a['digest']=='sha256:'+hashlib.sha256(data).hexdigest()
+           z=zipfile.ZipFile(io.BytesIO(data));assert not any('__MACOSX' in n or '.DS_Store' in n or '/._' in n for n in z.namelist())
+           prepared.append((a,data))
+          new=api('releases',{'tag_name':'datasets-v1.0','target_commitish':git('rev-parse','HEAD'),'name':release['name'],'body':release['body'],'draft':False,'prerelease':release['prerelease']})
+          for a,data in prepared:
+           uploaded=api(new['upload_url'].split('{')[0]+'?name='+a['name'],data)
+           assert uploaded['digest']==a['digest'] and uploaded['size']==a['size']
+           print(uploaded['name'],uploaded['digest'],'verified')
+          PYTHON
+          python "$RUNNER_TEMP/initialize.py"
