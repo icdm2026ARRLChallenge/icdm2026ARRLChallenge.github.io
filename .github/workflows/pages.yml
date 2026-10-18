@@ -1,0 +1,49 @@
+name: Publish public competition pages
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '7,17,27,37,47,57 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.sync.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: unzip -q website/source.zip -d website
+      - name: Verify and synchronize signed public scores
+        id: sync
+        env:
+          FORCE_BUILD: ${{ github.event_name != 'schedule' && '--force' || '' }}
+        run: python website/scripts/sync_results.py --url http://175.27.161.104/results --current-url https://icdm26socialchallenge.github.io/ICDM2026-Social-Sensemaking/results/current.json $FORCE_BUILD >> "$GITHUB_OUTPUT"
+      - if: steps.sync.outputs.changed == 'true'
+        run: python website/scripts/build_results.py && python website/scripts/package_public.py
+      - if: steps.sync.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/_site
+  deploy:
+    needs: build
+    if: needs.build.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
