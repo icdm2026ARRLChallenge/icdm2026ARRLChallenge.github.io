@@ -2,7 +2,7 @@
 
 ## Dataset Download
 
-[Download Task 2 Dataset.zip](https://github.com/icdm26SocialChallenge/ICDM2026-Social-Sensemaking/releases/download/datasets-v1.0/Task2-Dataset.zip)
+[Download Task 2 Dataset.zip](https://github.com/icdm2026ARRLChallenge/icdm2026ARRLChallenge.github.io/releases/download/datasets-v1.0/Task2-Dataset.zip)
 
 The dataset is distributed through GitHub Releases. Extract the archive to obtain the `Dataset/` directory.
 
