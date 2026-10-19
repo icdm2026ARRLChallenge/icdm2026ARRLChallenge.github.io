@@ -27,7 +27,7 @@ jobs:
         id: sync
         env:
           FORCE_BUILD: ${{ github.event_name != 'schedule' && '--force' || '' }}
-        run: python website/scripts/sync_results.py --url http://175.27.161.104/results --current-url https://icdm26socialchallenge.github.io/icdm2026ARRLChallenge/results/current.json $FORCE_BUILD >> "$GITHUB_OUTPUT"
+        run: python website/scripts/sync_results.py --url http://175.27.161.104/results --current-url https://icdm2026arrlchallenge.github.io/results/current.json $FORCE_BUILD >> "$GITHUB_OUTPUT"
       - if: steps.sync.outputs.changed == 'true'
         run: python website/scripts/build_results.py && python website/scripts/package_public.py
       - if: steps.sync.outputs.changed == 'true'
